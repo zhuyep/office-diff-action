@@ -2,6 +2,7 @@
 
 import difflib
 import hashlib
+import os
 import re
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -9,7 +10,9 @@ from typing import List, Optional, Tuple
 from .images import compare_page_images
 from .models import DocumentDiff, PageDiff
 from .ooxml import SUPPORTED_SUFFIXES, extract_text
-from .render import RenderError, render_document
+from .render import MAX_RASTER_BYTES, RenderError, render_document
+
+DEFAULT_OUTPUT_BUDGET = 768 * 1024 * 1024
 
 
 def _slug(value: str) -> str:
@@ -28,11 +31,43 @@ def _text(path: Optional[Path], errors: List[str]) -> Tuple[str, bool]:
         return "", False
 
 
-def _render(path: Optional[Path], output_dir: Path, dpi: int, errors: List[str]) -> List[Path]:
+def _tree_bytes(path: Path) -> int:
+    total = 0
+    if not path.exists():
+        return total
+    for root, directories, files in os.walk(path, followlinks=False):
+        root_path = Path(root)
+        directories[:] = [name for name in directories if not (root_path / name).is_symlink()]
+        for name in files:
+            candidate = root_path / name
+            if not candidate.is_symlink():
+                total += candidate.stat().st_size
+    return total
+
+
+def _remaining_output_budget(output_root: Path, maximum: int) -> int:
+    remaining = maximum - _tree_bytes(output_root)
+    if remaining <= 0:
+        raise ValueError("Generated report exceeds the output safety limit")
+    return remaining
+
+
+def _render(
+    path: Optional[Path],
+    output_dir: Path,
+    dpi: int,
+    errors: List[str],
+    max_raster_bytes: int,
+) -> List[Path]:
     if path is None:
         return []
     try:
-        return render_document(path, output_dir, dpi=dpi)
+        return render_document(
+            path,
+            output_dir,
+            dpi=dpi,
+            max_raster_bytes=min(MAX_RASTER_BYTES, max_raster_bytes),
+        )
     except (OSError, RenderError) as exc:
         errors.append(str(exc))
         return []
@@ -45,6 +80,7 @@ def compare_documents(
     output_root: Path,
     dpi: int = 110,
     pixel_threshold: int = 16,
+    max_output_bytes: int = DEFAULT_OUTPUT_BUDGET,
 ) -> DocumentDiff:
     """Compare two versions of one Office document."""
 
@@ -62,9 +98,19 @@ def compare_documents(
     errors: List[str] = []
     base_text, base_valid = _text(base_path, errors)
     current_text, current_valid = _text(current_path, errors)
-    base_pages = _render(base_path if base_valid else None, document_root / "base", dpi, errors)
+    base_pages = _render(
+        base_path if base_valid else None,
+        document_root / "base",
+        dpi,
+        errors,
+        _remaining_output_budget(output_root, max_output_bytes),
+    )
     current_pages = _render(
-        current_path if current_valid else None, document_root / "current", dpi, errors
+        current_path if current_valid else None,
+        document_root / "current",
+        dpi,
+        errors,
+        _remaining_output_budget(output_root, max_output_bytes),
     )
     text_diff = "\n".join(
         difflib.unified_diff(
@@ -87,6 +133,7 @@ def compare_documents(
             diff_path,
             pixel_threshold=pixel_threshold,
         )
+        _remaining_output_budget(output_root, max_output_bytes)
         if base_image is None:
             page_status = "added"
         elif current_image is None:

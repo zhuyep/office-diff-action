@@ -12,7 +12,9 @@ from officediff.models import RunSummary
 from officediff.report import write_reports
 
 
-def fake_render(path: Path, output_dir: Path, dpi: int = 110):
+def fake_render(
+    path: Path, output_dir: Path, dpi: int = 110, max_raster_bytes: int = 512 * 1024 * 1024
+):
     output_dir.mkdir(parents=True, exist_ok=True)
     image = Image.new("RGB", (100, 80), "white")
     if "current" in path.name:
@@ -44,6 +46,21 @@ class ComparisonReportTests(unittest.TestCase):
             self.assertTrue((output / "index.html").exists())
             self.assertIn("deck.pptx", (output / "report.md").read_text(encoding="utf-8"))
             self.assertIn('"changed_pages": 1', (output / "summary.json").read_text())
+
+    @patch("officediff.compare.render_document", side_effect=fake_render)
+    def test_stops_when_the_cumulative_output_budget_is_exhausted(self, _render):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            base = write_pptx(root / "0-base.pptx", [(1, "Before")])
+            current = write_pptx(root / "0-current.pptx", [(1, "After")])
+            with self.assertRaisesRegex(ValueError, "output safety limit"):
+                compare_documents(
+                    base,
+                    current,
+                    "deck.pptx",
+                    root / "report",
+                    max_output_bytes=1,
+                )
 
     @patch("officediff.compare.render_document", side_effect=fake_render)
     def test_malformed_xml_becomes_a_document_error(self, render):

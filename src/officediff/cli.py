@@ -17,6 +17,7 @@ from .report import write_reports
 OUTPUT_MARKER = ".office-diff-output"
 GENERATED_ENTRIES = ("documents", "index.html", "report.md", "summary.json")
 MAX_DOCUMENTS_PER_RUN = 20
+MAX_REPORT_BYTES = 768 * 1024 * 1024
 
 
 def _dpi(value: str) -> int:
@@ -80,18 +81,33 @@ def _validate_document(path: Path) -> Path:
 def _prepare_output(output: Path, repository: Optional[Path] = None) -> Path:
     """Prepare a report directory without recursively deleting an arbitrary path."""
 
-    resolved = output.resolve()
+    lexical = Path(os.path.abspath(os.fspath(output)))
+    if lexical.is_symlink():
+        raise ValueError("Refusing a symlinked Office Diff output directory")
+    resolved = lexical.resolve()
     forbidden = {Path(resolved.anchor), Path.home().resolve(), Path.cwd().resolve()}
     if resolved in forbidden:
         raise ValueError("Refusing to use a broad directory as report output: {}".format(resolved))
     if repository is not None:
-        repository = repository.resolve()
+        if any(ord(character) < 32 or ord(character) == 127 for character in os.fspath(output)):
+            raise ValueError("Action output path cannot contain control characters")
+        repository_lexical = Path(os.path.abspath(os.fspath(repository)))
         try:
-            relative = resolved.relative_to(repository)
+            lexical_relative = lexical.relative_to(repository_lexical)
         except ValueError as exc:
             raise ValueError("Action output must stay inside the repository") from exc
-        if relative == Path("."):
+        if lexical_relative == Path("."):
             raise ValueError("Action output cannot be the repository root")
+        cursor = repository_lexical
+        for part in lexical_relative.parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise ValueError("Action output path cannot contain symlinks")
+        repository = repository_lexical.resolve()
+        try:
+            resolved.relative_to(repository)
+        except ValueError as exc:
+            raise ValueError("Action output must stay inside the repository") from exc
 
     marker = resolved / OUTPUT_MARKER
     if marker.is_symlink():
@@ -133,6 +149,9 @@ def _prepare_output(output: Path, repository: Optional[Path] = None) -> Path:
 def _write_github_files(summary: RunSummary, output_dir: Path, repository: Path) -> None:
     relative_report = (output_dir / "index.html").relative_to(repository).as_posix()
     relative_output = output_dir.relative_to(repository).as_posix()
+    for value in (relative_report, relative_output):
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError("GitHub output values cannot contain control characters")
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a", encoding="utf-8") as stream:
@@ -170,6 +189,7 @@ def _compare_command(args: argparse.Namespace) -> int:
         output,
         dpi=args.dpi,
         pixel_threshold=args.pixel_threshold,
+        max_output_bytes=MAX_REPORT_BYTES,
     )
     summary = RunSummary(base_ref=str(base), head_ref=str(current), documents=[document])
     write_reports(summary, output)
@@ -218,6 +238,7 @@ def _action_command(args: argparse.Namespace) -> int:
                 output,
                 dpi=args.dpi,
                 pixel_threshold=args.pixel_threshold,
+                max_output_bytes=MAX_REPORT_BYTES,
             )
             document.git_status = change.status
             document.previous_path = change.old_path if change.old_path != change.new_path else None

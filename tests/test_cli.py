@@ -45,6 +45,35 @@ class OutputSafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "inside the repository"):
                 _prepare_output(root / "outside", repository=repository)
 
+    def test_rejects_output_directory_symlink_into_repository(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repository = Path(temporary)
+            source = repository / "src"
+            source.mkdir()
+            (source / OUTPUT_MARKER).write_text("office-diff test", encoding="utf-8")
+            evidence = source / "summary.json"
+            evidence.write_text("keep me", encoding="utf-8")
+            output = repository / "office-diff-report"
+            output.symlink_to(source, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                _prepare_output(output, repository=repository)
+            self.assertEqual(evidence.read_text(encoding="utf-8"), "keep me")
+
+    def test_rejects_symlinked_parent_inside_repository(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repository = Path(temporary)
+            source = repository / "src"
+            source.mkdir()
+            (repository / "reports").symlink_to(source, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                _prepare_output(repository / "reports" / "office", repository=repository)
+
+    def test_rejects_control_characters_in_action_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repository = Path(temporary)
+            with self.assertRaisesRegex(ValueError, "control characters"):
+                _prepare_output(repository / "report\nforged=owned", repository=repository)
+
     def test_rejects_symlinked_marker_without_touching_target(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
