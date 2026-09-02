@@ -6,10 +6,11 @@ from pathlib import Path
 from typing import Iterable, List
 from xml.etree import ElementTree
 
-
 SUPPORTED_SUFFIXES = {".docx", ".pptx"}
+MAX_COMPRESSED_FILE_BYTES = 64 * 1024 * 1024
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 128 * 1024 * 1024
 MAX_PART_BYTES = 32 * 1024 * 1024
+MAX_ARCHIVE_PARTS = 4096
 MAX_EXTRACTED_CHARACTERS = 2_000_000
 
 
@@ -48,10 +49,14 @@ def _existing_parts(archive: zipfile.ZipFile, candidates: Iterable[str]) -> List
 
 
 def _validate_archive_size(archive: zipfile.ZipFile) -> None:
+    entries = archive.infolist()
+    if len(entries) > MAX_ARCHIVE_PARTS:
+        raise ValueError("Office package contains too many parts to inspect safely")
     total = 0
-    for entry in archive.infolist():
+    for entry in entries:
         if entry.file_size > MAX_PART_BYTES:
-            raise ValueError("Office package part is too large to inspect safely: {}".format(entry.filename))
+            message = "Office package part is too large to inspect safely: {}"
+            raise ValueError(message.format(entry.filename))
         total += entry.file_size
         if total > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
             raise ValueError("Office package is too large to inspect safely")
@@ -66,6 +71,8 @@ def _cap_text(value: str) -> str:
 def _extract_docx(archive: zipfile.ZipFile) -> str:
     names = archive.namelist()
     ordered = _existing_parts(archive, ["word/document.xml"])
+    if not ordered:
+        raise ValueError("DOCX package is missing word/document.xml")
     extras = [
         name
         for name in names
@@ -86,6 +93,8 @@ def _extract_pptx(archive: zipfile.ZipFile) -> str:
         (name for name in names if re.match(r"ppt/slides/slide\d+\.xml$", name)),
         key=_natural_key,
     )
+    if not slides:
+        raise ValueError("PPTX package contains no slides")
     notes = sorted(
         (name for name in names if re.match(r"ppt/notesSlides/notesSlide\d+\.xml$", name)),
         key=_natural_key,
@@ -104,6 +113,8 @@ def extract_text(path: Path) -> str:
     suffix = path.suffix.lower()
     if suffix not in SUPPORTED_SUFFIXES:
         raise ValueError("Unsupported Office file: {}".format(path))
+    if path.stat().st_size > MAX_COMPRESSED_FILE_BYTES:
+        raise ValueError("Office package is too large to inspect safely")
     try:
         with zipfile.ZipFile(path) as archive:
             _validate_archive_size(archive)
@@ -112,3 +123,7 @@ def extract_text(path: Path) -> str:
             return _cap_text(_extract_pptx(archive))
     except zipfile.BadZipFile as exc:
         raise ValueError("{} is not a valid Office Open XML package".format(path)) from exc
+    except ElementTree.ParseError as exc:
+        raise ValueError("{} contains malformed Office XML".format(path)) from exc
+    except RuntimeError as exc:
+        raise ValueError("{} contains an unreadable Office package part".format(path)) from exc

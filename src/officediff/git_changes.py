@@ -7,6 +7,8 @@ from typing import List, Optional
 
 from .ooxml import SUPPORTED_SUFFIXES
 
+GIT_LFS_POINTER_HEADER = b"version https://git-lfs.github.com/spec/v1\n"
+
 
 class GitError(RuntimeError):
     pass
@@ -90,11 +92,20 @@ def collect_changes(repository: Path, base_ref: str, head_ref: str) -> List[Chan
             new_path = None if code == "D" else path
         old_supported = bool(old_path and Path(old_path).suffix.lower() in SUPPORTED_SUFFIXES)
         new_supported = bool(new_path and Path(new_path).suffix.lower() in SUPPORTED_SUFFIXES)
-        if code in {"R", "C"} and old_supported and new_supported:
-            if Path(old_path).suffix.lower() == Path(new_path).suffix.lower():
+        if code == "R":
+            if (
+                old_supported
+                and new_supported
+                and Path(old_path).suffix.lower() == Path(new_path).suffix.lower()
+            ):
                 changes.append(ChangedFile(status=status, old_path=old_path, new_path=new_path))
             else:
-                changes.append(ChangedFile(status="D", old_path=old_path, new_path=None))
+                if old_supported:
+                    changes.append(ChangedFile(status="D", old_path=old_path, new_path=None))
+                if new_supported:
+                    changes.append(ChangedFile(status="A", old_path=None, new_path=new_path))
+        elif code == "C":
+            if new_supported:
                 changes.append(ChangedFile(status="A", old_path=None, new_path=new_path))
         elif old_supported or new_supported:
             changes.append(ChangedFile(status=status, old_path=old_path, new_path=new_path))
@@ -106,5 +117,11 @@ def materialize(repository: Path, ref: str, path: str, destination: Path) -> Pat
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     payload = _run_git(repository, ["show", "{}:{}".format(ref, path)], binary=True)
+    if payload.startswith(GIT_LFS_POINTER_HEADER):
+        raise GitError(
+            "{} at {} is stored with Git LFS, which Office Diff does not yet support".format(
+                path, ref
+            )
+        )
     destination.write_bytes(payload)
     return destination

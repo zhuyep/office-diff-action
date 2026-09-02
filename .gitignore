@@ -8,6 +8,7 @@ venv/
 build/
 dist/
 office-diff-report/
+*-final-report/
 .DS_Store
 *.tmp
 *.pdf

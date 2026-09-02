@@ -2,6 +2,9 @@
 
 **See what changed in Word and PowerPoint before you merge.**
 
+[![Test](https://github.com/zhuyep/office-diff-action/actions/workflows/test.yml/badge.svg)](https://github.com/zhuyep/office-diff-action/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 GitHub can store `.docx` and `.pptx` files, but its normal diff cannot show a
 reviewer that text reflowed, a slide moved, or a document stopped rendering.
 Office Diff turns every changed page or slide into a base/current/difference
@@ -88,8 +91,9 @@ office-diff-report/
 ## Design choices
 
 - **Rendering is evidence, not ground truth.** The Action pins LibreOffice,
-  Poppler, and fonts in one container, but Microsoft Office can still paginate a
-  complex document differently.
+  Poppler, and fonts to the same released container for both sides of a
+  comparison. A future container release can still change rendering, and
+  Microsoft Office can paginate a complex document differently.
 - **No document leaves the runner.** The Action does not upload inputs to a
   third-party service. Uploading the generated artifact is an explicit workflow
   step controlled by the repository.
@@ -114,9 +118,12 @@ office-diff-report/
 
 - The visual report is a workflow artifact, not an inline PR image gallery.
 - Password-protected and legacy `.doc`/`.ppt` files are not supported.
+- Git LFS-backed Office files currently stop with an explicit unsupported error.
 - Fonts unavailable in the container are substituted.
 - Pages/slides are matched by position; move detection is not yet semantic.
 - LibreOffice rendering is close to, but not identical to, desktop Microsoft Office.
+- One run accepts at most 20 changed documents and 200 pages/slides per document;
+  render DPI is constrained to 36–300 to keep untrusted pull requests bounded.
 
 These limits are deliberate and visible. Please open an issue with a small,
 shareable sample document when you encounter a rendering problem.

@@ -14,7 +14,9 @@ custom XML, embedded files, and external links.
 ## Development
 
 ```bash
-python -m pip install -e .
+python -m pip install -e ".[dev]"
+ruff check .
+ruff format --check .
 python -m unittest discover -s tests -v
 ```
 
@@ -27,4 +29,5 @@ reproduction when one is needed.
 - [ ] User-facing behavior is documented.
 - [ ] Test documents are synthetic and safe to publish.
 - [ ] No generated report contains local paths or confidential content.
+- [ ] `ruff check .` and `ruff format --check .` pass.
 - [ ] `python -m unittest discover -s tests -v` passes.

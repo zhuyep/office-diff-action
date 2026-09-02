@@ -11,7 +11,6 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from pptx.util import Inches, Pt
 
-
 ROOT = Path(__file__).resolve().parent / "generated"
 
 
@@ -73,7 +72,8 @@ def make_deck(path: Path, current: bool) -> None:
     )
 
     add_card(slide, "Pages checked", "24" if current else "18", 0.72, (37, 99, 235))
-    add_card(slide, "Layout errors", "0" if current else "3", 4.89, (22, 163, 74) if current else (220, 38, 38))
+    status_color = (22, 163, 74) if current else (220, 38, 38)
+    add_card(slide, "Layout errors", "0" if current else "3", 4.89, status_color)
     add_card(slide, "Review status", "PASS" if current else "OPEN", 9.06, (124, 58, 237))
 
     add_text(
@@ -121,9 +121,7 @@ def make_document(path: Path, current: bool) -> None:
     conclusion = document.add_paragraph()
     conclusion.paragraph_format.space_before = DocxPt(12)
     conclusion.add_run(
-        "The document is ready to ship."
-        if current
-        else "The document still needs review."
+        "The document is ready to ship." if current else "The document still needs review."
     )
     document.core_properties.title = "Office Diff synthetic demo"
     document.core_properties.author = "Office Diff contributors"

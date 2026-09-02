@@ -4,7 +4,7 @@ import difflib
 import hashlib
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .images import compare_page_images
 from .models import DocumentDiff, PageDiff
@@ -18,19 +18,17 @@ def _slug(value: str) -> str:
     return "{}-{}".format(readable[:64], digest)
 
 
-def _text(path: Optional[Path], errors: List[str]) -> str:
+def _text(path: Optional[Path], errors: List[str]) -> Tuple[str, bool]:
     if path is None:
-        return ""
+        return "", True
     try:
-        return extract_text(path)
+        return extract_text(path), True
     except (OSError, ValueError) as exc:
         errors.append("Text extraction failed for {}: {}".format(path.name, exc))
-        return ""
+        return "", False
 
 
-def _render(
-    path: Optional[Path], output_dir: Path, dpi: int, errors: List[str]
-) -> List[Path]:
+def _render(path: Optional[Path], output_dir: Path, dpi: int, errors: List[str]) -> List[Path]:
     if path is None:
         return []
     try:
@@ -62,10 +60,12 @@ def compare_documents(
 
     document_root = output_root / "documents" / _slug(display_path)
     errors: List[str] = []
-    base_pages = _render(base_path, document_root / "base", dpi, errors)
-    current_pages = _render(current_path, document_root / "current", dpi, errors)
-    base_text = _text(base_path, errors)
-    current_text = _text(current_path, errors)
+    base_text, base_valid = _text(base_path, errors)
+    current_text, current_valid = _text(current_path, errors)
+    base_pages = _render(base_path if base_valid else None, document_root / "base", dpi, errors)
+    current_pages = _render(
+        current_path if current_valid else None, document_root / "current", dpi, errors
+    )
     text_diff = "\n".join(
         difflib.unified_diff(
             base_text.splitlines(),
@@ -109,7 +109,7 @@ def compare_documents(
         )
 
     if errors:
-        status = "render-error"
+        status = "error"
     elif base_path is None:
         status = "added"
     elif current_path is None:

@@ -7,6 +7,7 @@ real LibreOffice rendering smoke test in CI.
 Regenerate them with:
 
 ```bash
+python -m pip install -e ".[demo]"
 python examples/make_demo.py
 cp examples/generated/{before,after}.{pptx,docx} tests/fixtures/
 ```

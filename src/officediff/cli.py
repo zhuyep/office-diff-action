@@ -14,15 +14,22 @@ from .git_changes import GitError, collect_changes, materialize, trust_repositor
 from .models import RunSummary
 from .report import write_reports
 
-
 OUTPUT_MARKER = ".office-diff-output"
 GENERATED_ENTRIES = ("documents", "index.html", "report.md", "summary.json")
+MAX_DOCUMENTS_PER_RUN = 20
 
 
-def _positive_int(value: str) -> int:
+def _dpi(value: str) -> int:
     number = int(value)
-    if number <= 0:
-        raise argparse.ArgumentTypeError("must be greater than zero")
+    if not 36 <= number <= 300:
+        raise argparse.ArgumentTypeError("must be between 36 and 300")
+    return number
+
+
+def _pixel_threshold(value: str) -> int:
+    number = int(value)
+    if not 0 <= number <= 255:
+        raise argparse.ArgumentTypeError("must be between 0 and 255")
     return number
 
 
@@ -47,16 +54,16 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("base", type=Path)
     compare_parser.add_argument("current", type=Path)
     compare_parser.add_argument("--output", type=Path, default=Path("office-diff-report"))
-    compare_parser.add_argument("--dpi", type=_positive_int, default=110)
-    compare_parser.add_argument("--pixel-threshold", type=int, default=16)
+    compare_parser.add_argument("--dpi", type=_dpi, default=110)
+    compare_parser.add_argument("--pixel-threshold", type=_pixel_threshold, default=16)
 
     action_parser = subparsers.add_parser("action", help="compare Office files in a Git range")
     action_parser.add_argument("--repository", type=Path, default=Path.cwd())
     action_parser.add_argument("--base-ref", required=True)
     action_parser.add_argument("--head-ref", default="HEAD")
     action_parser.add_argument("--output", type=Path, default=Path("office-diff-report"))
-    action_parser.add_argument("--dpi", type=_positive_int, default=110)
-    action_parser.add_argument("--pixel-threshold", type=int, default=16)
+    action_parser.add_argument("--dpi", type=_dpi, default=110)
+    action_parser.add_argument("--pixel-threshold", type=_pixel_threshold, default=16)
     action_parser.add_argument(
         "--allow-render-errors", type=_boolean, nargs="?", const=True, default=False
     )
@@ -87,6 +94,8 @@ def _prepare_output(output: Path, repository: Optional[Path] = None) -> Path:
             raise ValueError("Action output cannot be the repository root")
 
     marker = resolved / OUTPUT_MARKER
+    if marker.is_symlink():
+        raise ValueError("Refusing a symlinked Office Diff output marker")
     if resolved.exists():
         if not resolved.is_dir():
             raise ValueError("Report output is not a directory: {}".format(resolved))
@@ -105,15 +114,29 @@ def _prepare_output(output: Path, repository: Optional[Path] = None) -> Path:
                     shutil.rmtree(target)
     else:
         resolved.mkdir(parents=True)
-    marker.write_text("office-diff {}\n".format(__version__), encoding="utf-8")
+    descriptor, temporary_marker = tempfile.mkstemp(
+        prefix=".office-diff-output-", dir=str(resolved)
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write("office-diff {}\n".format(__version__))
+        os.replace(temporary_marker, marker)
+    except BaseException:
+        try:
+            os.unlink(temporary_marker)
+        except FileNotFoundError:
+            pass
+        raise
     return resolved
 
 
-def _write_github_files(summary: RunSummary, output_dir: Path) -> None:
+def _write_github_files(summary: RunSummary, output_dir: Path, repository: Path) -> None:
+    relative_report = (output_dir / "index.html").relative_to(repository).as_posix()
+    relative_output = output_dir.relative_to(repository).as_posix()
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a", encoding="utf-8") as stream:
-            stream.write("report-path={}\n".format((output_dir / "index.html").resolve()))
+            stream.write("report-path={}\n".format(relative_report))
             stream.write("documents={}\n".format(len(summary.documents)))
             stream.write("changed-pages={}\n".format(summary.changed_pages))
             stream.write("errors={}\n".format(summary.error_count))
@@ -130,7 +153,8 @@ def _write_github_files(summary: RunSummary, output_dir: Path) -> None:
                 )
             )
             if summary.documents:
-                stream.write("Upload `{}` as an artifact to open the visual report.\n".format(output_dir))
+                message = "Upload `{}` as an artifact to open the visual report.\n"
+                stream.write(message.format(relative_output))
             else:
                 stream.write("No changed `.docx` or `.pptx` files were found.\n")
 
@@ -157,9 +181,15 @@ def _action_command(args: argparse.Namespace) -> int:
     repository = args.repository.resolve()
     if os.environ.get("GITHUB_ACTIONS") == "true":
         trust_repository_for_ci(repository)
+    changes = collect_changes(repository, args.base_ref, args.head_ref)
+    if len(changes) > MAX_DOCUMENTS_PER_RUN:
+        raise ValueError(
+            "Refusing to render {} documents; the per-run limit is {}".format(
+                len(changes), MAX_DOCUMENTS_PER_RUN
+            )
+        )
     output = args.output if args.output.is_absolute() else repository / args.output
     output = _prepare_output(output, repository=repository)
-    changes = collect_changes(repository, args.base_ref, args.head_ref)
     documents = []
     with tempfile.TemporaryDirectory(prefix="officediff-git-") as temporary:
         temporary_root = Path(temporary)
@@ -181,23 +211,34 @@ def _action_command(args: argparse.Namespace) -> int:
                     change.new_path,
                     temporary_root / "{}-current{}".format(index, suffix),
                 )
-            documents.append(
-                compare_documents(
-                    base,
-                    current,
-                    change.display_path,
-                    output,
-                    dpi=args.dpi,
-                    pixel_threshold=args.pixel_threshold,
-                )
+            document = compare_documents(
+                base,
+                current,
+                change.display_path,
+                output,
+                dpi=args.dpi,
+                pixel_threshold=args.pixel_threshold,
             )
+            document.git_status = change.status
+            document.previous_path = change.old_path if change.old_path != change.new_path else None
+            change_code = change.status[0]
+            document.change_type = {
+                "A": "added",
+                "D": "deleted",
+                "M": "modified",
+                "R": "renamed",
+                "C": "copied",
+            }.get(change_code, "changed")
+            if document.change_type in {"renamed", "copied"} and document.status == "unchanged":
+                document.status = document.change_type
+            documents.append(document)
     summary = RunSummary(
         base_ref=args.base_ref,
         head_ref=args.head_ref,
         documents=documents,
     )
     write_reports(summary, output)
-    _write_github_files(summary, output)
+    _write_github_files(summary, output, repository)
     print("Reviewed {} Office document(s).".format(len(documents)))
     print("Visual report: {}".format(output / "index.html"))
     if summary.error_count and not args.allow_render_errors:

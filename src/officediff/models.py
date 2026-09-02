@@ -26,6 +26,9 @@ class DocumentDiff:
     text_diff: str
     pages: List[PageDiff] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
+    change_type: str = "compared"
+    git_status: Optional[str] = None
+    previous_path: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

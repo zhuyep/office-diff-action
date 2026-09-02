@@ -33,7 +33,7 @@ inputs:
 
 outputs:
   report-path:
-    description: Absolute path to the generated HTML report
+    description: Repository-relative path to the generated HTML report
   documents:
     description: Number of changed Office documents reviewed
   changed-pages:

@@ -1,15 +1,15 @@
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
+from helpers import write_pptx
 from PIL import Image
 
 from officediff.compare import compare_documents
 from officediff.models import RunSummary
 from officediff.report import write_reports
-
-from helpers import write_pptx
 
 
 def fake_render(path: Path, output_dir: Path, dpi: int = 110):
@@ -44,6 +44,23 @@ class ComparisonReportTests(unittest.TestCase):
             self.assertTrue((output / "index.html").exists())
             self.assertIn("deck.pptx", (output / "report.md").read_text(encoding="utf-8"))
             self.assertIn('"changed_pages": 1', (output / "summary.json").read_text())
+
+    @patch("officediff.compare.render_document", side_effect=fake_render)
+    def test_malformed_xml_becomes_a_document_error(self, render):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            malformed = root / "malformed.docx"
+            with zipfile.ZipFile(malformed, "w") as archive:
+                archive.writestr("word/document.xml", "<w:document>")
+            output = root / "report"
+            document = compare_documents(malformed, None, "malformed.docx", output)
+            summary = RunSummary(base_ref="base", head_ref="head", documents=[document])
+            write_reports(summary, output)
+
+            self.assertEqual(document.status, "error")
+            self.assertTrue(document.errors)
+            render.assert_not_called()
+            self.assertTrue((output / "summary.json").exists())
 
 
 if __name__ == "__main__":

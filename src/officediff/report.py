@@ -14,10 +14,13 @@ def _markdown_document(document: DocumentDiff) -> List[str]:
         "## `{}`".format(document.path.replace("`", "\\`")),
         "",
         "- Status: **{}**".format(document.status),
+        "- Git change: **{}**".format(document.change_type),
         "- Pages/slides: {} → {}".format(document.base_pages, document.current_pages),
         "- Changed pages/slides: {}".format(document.changed_pages),
         "",
     ]
+    if document.previous_path:
+        lines.insert(5, "- Previous path: `{}`".format(document.previous_path.replace("`", "\\`")))
     if document.errors:
         lines.extend(["### Errors", ""])
         lines.extend("- {}".format(error) for error in document.errors)
@@ -31,9 +34,7 @@ def _markdown_document(document: DocumentDiff) -> List[str]:
                         page.index, page.status, page.change_ratio
                     ),
                     "",
-                    "![Page/slide {} visual diff]({})".format(
-                        page.index, quote(page.diff_image)
-                    ),
+                    "![Page/slide {} visual diff]({})".format(page.index, quote(page.diff_image)),
                     "",
                 ]
             )
@@ -76,13 +77,18 @@ def _html_document(document: DocumentDiff) -> str:
     parts = [
         '<section class="document">',
         "<h2>{}</h2>".format(html.escape(document.path)),
-        '<p><span class="status">{}</span> {} → {} pages/slides; {} changed.</p>'.format(
+        '<p><span class="status">{}</span> · {} · {} → {} pages/slides; {} changed.</p>'.format(
             html.escape(document.status),
+            html.escape(document.change_type),
             document.base_pages,
             document.current_pages,
             document.changed_pages,
         ),
     ]
+    if document.previous_path:
+        parts.append(
+            "<p>Previous path: <code>{}</code></p>".format(html.escape(document.previous_path))
+        )
     if document.errors:
         parts.append('<div class="errors"><strong>Errors</strong><ul>')
         parts.extend("<li>{}</li>".format(html.escape(error)) for error in document.errors)
@@ -93,15 +99,15 @@ def _html_document(document: DocumentDiff) -> str:
                 "<h3>Page/slide {} · {} · {:.2%} changed</h3>".format(
                     page.index, html.escape(page.status), page.change_ratio
                 ),
-                '<a href="{0}"><img loading="lazy" src="{0}" alt="Page/slide {1} visual diff"></a>'.format(
-                    quote(page.diff_image), page.index
-                ),
+                (
+                    '<a href="{0}"><img loading="lazy" src="{0}" '
+                    'alt="Page/slide {1} visual diff"></a>'
+                ).format(quote(page.diff_image), page.index),
             ]
         )
     if document.text_diff:
-        parts.extend(
-            ["<h3>Extracted text diff</h3>", "<pre>{}</pre>".format(html.escape(document.text_diff))]
-        )
+        diff_block = "<pre>{}</pre>".format(html.escape(document.text_diff))
+        parts.extend(["<h3>Extracted text diff</h3>", diff_block])
     parts.append("</section>")
     return "\n".join(parts)
 
@@ -118,7 +124,12 @@ def render_html(summary: RunSummary) -> str:
   <title>Office Diff Report</title>
   <style>
     :root {{ color-scheme: light dark; }}
-    body {{ font: 16px/1.55 system-ui, sans-serif; max-width: 1180px; margin: 0 auto; padding: 32px 20px 80px; }}
+    body {{
+      font: 16px/1.55 system-ui, sans-serif;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }}
     header {{ border-bottom: 1px solid #9ca3af55; margin-bottom: 32px; }}
     .summary {{ display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }}
     .metric {{ border: 1px solid #9ca3af66; border-radius: 10px; padding: 10px 14px; }}
