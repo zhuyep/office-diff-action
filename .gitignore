@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+.venv*/
+venv/
+build/
+dist/
+office-diff-report/
+.DS_Store
+*.tmp
+*.pdf
+.jez/
+
+# Demo outputs are selectively committed.
+examples/generated/

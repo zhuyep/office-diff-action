@@ -1,0 +1,52 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install .
+      - run: python -m unittest discover -s tests -v
+
+  action-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build the Docker Action
+        run: docker build -t office-diff-action:test .
+      - name: Check the CLI in the image
+        run: docker run --rm office-diff-action:test --version
+      - name: Render the synthetic PowerPoint fixture
+        run: >-
+          docker run --rm
+          -v "$PWD:/work"
+          office-diff-action:test
+          compare /work/tests/fixtures/before.pptx /work/tests/fixtures/after.pptx
+          --output /work/pptx-smoke-report
+      - name: Render the synthetic Word fixture
+        run: >-
+          docker run --rm
+          -v "$PWD:/work"
+          office-diff-action:test
+          compare /work/tests/fixtures/before.docx /work/tests/fixtures/after.docx
+          --output /work/docx-smoke-report
+      - name: Verify smoke-test reports
+        run: |
+          test -f pptx-smoke-report/index.html
+          test -f docx-smoke-report/index.html

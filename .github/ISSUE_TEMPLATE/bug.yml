@@ -1,0 +1,40 @@
+name: Rendering bug
+description: Report an incorrect or failed DOCX/PPTX render
+title: "[render] "
+labels: [bug, rendering]
+body:
+  - type: markdown
+    attributes:
+      value: Do not attach confidential documents. Recreate the issue with a synthetic file.
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format
+      options: [DOCX, PPTX]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Office Diff version or commit
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result and logs
+    validations:
+      required: true
+  - type: checkboxes
+    id: safe
+    attributes:
+      label: Safe reproduction
+      options:
+        - label: Any attached document is synthetic and safe to publish.
+          required: true

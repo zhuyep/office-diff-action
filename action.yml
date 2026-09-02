@@ -1,0 +1,62 @@
+name: Office Diff
+description: Render visual and text diffs for changed Word and PowerPoint files
+author: Zhuy
+
+branding:
+  icon: eye
+  color: purple
+
+inputs:
+  base-ref:
+    description: Git commit or ref used as the comparison baseline
+    required: true
+  head-ref:
+    description: Git commit or ref containing the proposed changes
+    required: false
+    default: HEAD
+  output-dir:
+    description: Directory that receives the HTML, Markdown, JSON, and image report
+    required: false
+    default: office-diff-report
+  dpi:
+    description: Rendering resolution in dots per inch
+    required: false
+    default: "110"
+  pixel-threshold:
+    description: Per-pixel brightness difference ignored as rendering noise (0-255)
+    required: false
+    default: "16"
+  allow-render-errors:
+    description: Return success when one or more documents cannot be rendered
+    required: false
+    default: "false"
+
+outputs:
+  report-path:
+    description: Absolute path to the generated HTML report
+  documents:
+    description: Number of changed Office documents reviewed
+  changed-pages:
+    description: Number of pages or slides with visual changes
+  errors:
+    description: Number of rendering or extraction errors
+
+runs:
+  using: docker
+  image: Dockerfile
+  args:
+    - action
+    - --repository
+    - /github/workspace
+    - --base-ref
+    - ${{ inputs.base-ref }}
+    - --head-ref
+    - ${{ inputs.head-ref }}
+    - --output
+    - ${{ inputs.output-dir }}
+    - --dpi
+    - ${{ inputs.dpi }}
+    - --pixel-threshold
+    - ${{ inputs.pixel-threshold }}
+    - --allow-render-errors
+    - ${{ inputs.allow-render-errors }}

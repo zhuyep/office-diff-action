@@ -1,0 +1,13 @@
+.git
+.github
+.jez
+.venv*
+assets
+build
+dist
+examples
+tests
+__pycache__
+*.pyc
+*.pyo
+.DS_Store

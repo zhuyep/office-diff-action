@@ -1,0 +1,23 @@
+name: Feature request
+description: Propose a focused improvement backed by a real workflow
+title: "[feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What review problem are you trying to solve?
+      description: Describe the current workflow and failure, not only a desired feature.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workaround
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Example or evidence
+      description: Link to a public example or describe a synthetic reproduction.
