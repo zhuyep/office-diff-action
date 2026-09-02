@@ -1,6 +1,8 @@
 # Office Diff Action
 
-**See what changed in Word and PowerPoint before you merge.**
+**See what changed in Word and PowerPoint before you merge. / 在合并前看清 Word 和 PowerPoint 到底改了什么。**
+
+English · [简体中文](README.zh-CN.md)
 
 [![Test](https://github.com/zhuyep/office-diff-action/actions/workflows/test.yml/badge.svg)](https://github.com/zhuyep/office-diff-action/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -9,6 +11,9 @@ GitHub can store `.docx` and `.pptx` files, but its normal diff cannot show a
 reviewer that text reflowed, a slide moved, or a document stopped rendering.
 Office Diff turns every changed page or slide into a base/current/difference
 contact sheet and produces text and machine-readable diffs alongside it.
+
+> 中文用户可以直接阅读[完整中文说明](README.zh-CN.md)，包含 GitHub Actions
+> 接入示例、本地使用方式、安全边界和当前限制。
 
 ![Office Diff demo](assets/demo/page-001.png)
 
@@ -140,7 +145,8 @@ shareable sample document when you encounter a rendering problem.
 
 Small reproduction files and focused rendering cases are especially valuable.
 See [CONTRIBUTING.md](CONTRIBUTING.md). By participating, you agree to follow
-the [Code of Conduct](CODE_OF_CONDUCT.md).
+the [Code of Conduct](CODE_OF_CONDUCT.md). 中文贡献说明见
+[CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。
 
 ## License
 

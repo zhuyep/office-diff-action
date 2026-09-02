@@ -1,5 +1,7 @@
 # Contributing
 
+[简体中文](CONTRIBUTING.zh-CN.md)
+
 Thanks for helping make Office changes reviewable.
 
 ## Before opening code

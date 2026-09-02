@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-02
+
+### Changed
+
+- Added a complete Simplified Chinese README and contribution guide.
+- Added a bilingual project introduction for Chinese and international users.
+
 ## [0.1.0] - 2026-09-02
 
 ### Added
@@ -15,5 +22,6 @@ All notable changes to this project are documented here.
 - Git range discovery for GitHub Actions.
 - Docker Action packaging and synthetic demo.
 
-[Unreleased]: https://github.com/zhuyep/office-diff-action/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/zhuyep/office-diff-action/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/zhuyep/office-diff-action/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/zhuyep/office-diff-action/releases/tag/v0.1.0
