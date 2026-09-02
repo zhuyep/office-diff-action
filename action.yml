@@ -43,7 +43,7 @@ outputs:
 
 runs:
   using: docker
-  image: docker://ghcr.io/zhuyep/office-diff-action:0.1.0
+  image: docker://ghcr.io/zhuyep/office-diff-action:0.1.1
   args:
     - action
     - --repository
