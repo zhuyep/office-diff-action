@@ -39,6 +39,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Run the packaged Action
+        uses: ./
+        with:
+          base-ref: HEAD^
+          head-ref: HEAD
+          output-dir: packaged-smoke-report
+      - name: Verify the packaged Action report
+        run: test -f packaged-smoke-report/index.html
       - name: Build the Docker Action
         run: docker build -t office-diff-action:test .
       - name: Check the CLI in the image
