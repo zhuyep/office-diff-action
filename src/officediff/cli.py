@@ -15,6 +15,10 @@ from .models import RunSummary
 from .report import write_reports
 
 
+OUTPUT_MARKER = ".office-diff-output"
+GENERATED_ENTRIES = ("documents", "index.html", "report.md", "summary.json")
+
+
 def _positive_int(value: str) -> int:
     number = int(value)
     if number <= 0:
@@ -66,6 +70,45 @@ def _validate_document(path: Path) -> Path:
     return resolved
 
 
+def _prepare_output(output: Path, repository: Optional[Path] = None) -> Path:
+    """Prepare a report directory without recursively deleting an arbitrary path."""
+
+    resolved = output.resolve()
+    forbidden = {Path(resolved.anchor), Path.home().resolve(), Path.cwd().resolve()}
+    if resolved in forbidden:
+        raise ValueError("Refusing to use a broad directory as report output: {}".format(resolved))
+    if repository is not None:
+        repository = repository.resolve()
+        try:
+            relative = resolved.relative_to(repository)
+        except ValueError as exc:
+            raise ValueError("Action output must stay inside the repository") from exc
+        if relative == Path("."):
+            raise ValueError("Action output cannot be the repository root")
+
+    marker = resolved / OUTPUT_MARKER
+    if resolved.exists():
+        if not resolved.is_dir():
+            raise ValueError("Report output is not a directory: {}".format(resolved))
+        if any(resolved.iterdir()) and not marker.is_file():
+            raise ValueError(
+                "Refusing to overwrite a non-empty directory not created by Office Diff: {}".format(
+                    resolved
+                )
+            )
+        if marker.is_file():
+            for name in GENERATED_ENTRIES:
+                target = resolved / name
+                if target.is_symlink() or target.is_file():
+                    target.unlink()
+                elif target.is_dir():
+                    shutil.rmtree(target)
+    else:
+        resolved.mkdir(parents=True)
+    marker.write_text("office-diff {}\n".format(__version__), encoding="utf-8")
+    return resolved
+
+
 def _write_github_files(summary: RunSummary, output_dir: Path) -> None:
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
@@ -95,9 +138,7 @@ def _write_github_files(summary: RunSummary, output_dir: Path) -> None:
 def _compare_command(args: argparse.Namespace) -> int:
     base = _validate_document(args.base)
     current = _validate_document(args.current)
-    output = args.output.resolve()
-    if output.exists():
-        shutil.rmtree(output)
+    output = _prepare_output(args.output)
     document = compare_documents(
         base,
         current,
@@ -117,9 +158,7 @@ def _action_command(args: argparse.Namespace) -> int:
     if os.environ.get("GITHUB_ACTIONS") == "true":
         trust_repository_for_ci(repository)
     output = args.output if args.output.is_absolute() else repository / args.output
-    output = output.resolve()
-    if output.exists():
-        shutil.rmtree(output)
+    output = _prepare_output(output, repository=repository)
     changes = collect_changes(repository, args.base_ref, args.head_ref)
     documents = []
     with tempfile.TemporaryDirectory(prefix="officediff-git-") as temporary:
