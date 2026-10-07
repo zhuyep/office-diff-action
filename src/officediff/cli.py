@@ -1,6 +1,7 @@
 """Command-line interface for direct and GitHub Action comparisons."""
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -9,13 +10,12 @@ from pathlib import Path
 from typing import List, Optional
 
 from . import __version__
-from .compare import compare_documents
 from .git_changes import GitError, collect_changes, materialize, trust_repository_for_ci
 from .models import RunSummary
 from .report import write_reports
 
 OUTPUT_MARKER = ".office-diff-output"
-GENERATED_ENTRIES = ("documents", "index.html", "report.md", "summary.json")
+GENERATED_ENTRIES = ("documents", "index.html", "report.md", "summary.json", "environment.json")
 MAX_DOCUMENTS_PER_RUN = 20
 MAX_REPORT_BYTES = 768 * 1024 * 1024
 
@@ -68,6 +68,21 @@ def build_parser() -> argparse.ArgumentParser:
     action_parser.add_argument(
         "--allow-render-errors", type=_boolean, nargs="?", const=True, default=False
     )
+
+    doctor = subparsers.add_parser("doctor", help="capture renderer and font environment evidence")
+    doctor.add_argument("--output", type=Path, help="new JSON file (defaults to stdout)")
+
+    preflight = subparsers.add_parser(
+        "preflight", help="inspect text, font declarations and environment without rendering"
+    )
+    preflight.add_argument("base", type=Path)
+    preflight.add_argument("current", type=Path)
+    preflight.add_argument("--output", type=Path, default=Path("office-preflight-report"))
+    preflight.add_argument("--environment", type=Path, help="current doctor JSON snapshot")
+    preflight.add_argument(
+        "--baseline-environment", type=Path, help="previous doctor JSON snapshot"
+    )
+    preflight.add_argument("--fail-on-warning", action="store_true", help="exit 1 on any warning")
     return parser
 
 
@@ -179,9 +194,13 @@ def _write_github_files(summary: RunSummary, output_dir: Path, repository: Path)
 
 
 def _compare_command(args: argparse.Namespace) -> int:
+    from .compare import compare_documents
+    from .environment import capture_environment
+
     base = _validate_document(args.base)
     current = _validate_document(args.current)
     output = _prepare_output(args.output)
+    environment = capture_environment()
     document = compare_documents(
         base,
         current,
@@ -191,13 +210,18 @@ def _compare_command(args: argparse.Namespace) -> int:
         pixel_threshold=args.pixel_threshold,
         max_output_bytes=MAX_REPORT_BYTES,
     )
-    summary = RunSummary(base_ref=str(base), head_ref=str(current), documents=[document])
+    summary = RunSummary(
+        base_ref=str(base), head_ref=str(current), documents=[document], environment=environment
+    )
     write_reports(summary, output)
     print("Visual report: {}".format(output / "index.html"))
     return 1 if summary.error_count else 0
 
 
 def _action_command(args: argparse.Namespace) -> int:
+    from .compare import compare_documents
+    from .environment import capture_environment
+
     repository = args.repository.resolve()
     if os.environ.get("GITHUB_ACTIONS") == "true":
         trust_repository_for_ci(repository)
@@ -210,6 +234,7 @@ def _action_command(args: argparse.Namespace) -> int:
         )
     output = args.output if args.output.is_absolute() else repository / args.output
     output = _prepare_output(output, repository=repository)
+    environment = capture_environment()
     documents = []
     with tempfile.TemporaryDirectory(prefix="officediff-git-") as temporary:
         temporary_root = Path(temporary)
@@ -257,6 +282,7 @@ def _action_command(args: argparse.Namespace) -> int:
         base_ref=args.base_ref,
         head_ref=args.head_ref,
         documents=documents,
+        environment=environment,
     )
     write_reports(summary, output)
     _write_github_files(summary, output, repository)
@@ -267,12 +293,52 @@ def _action_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _doctor_command(args: argparse.Namespace) -> int:
+    from .environment import capture_environment
+
+    payload = json.dumps(capture_environment(), ensure_ascii=False, indent=2) + "\n"
+    if args.output is None:
+        print(payload, end="")
+    else:
+        # Exclusive creation also refuses existing symlinks and hard links.
+        with args.output.open("x", encoding="utf-8") as stream:
+            stream.write(payload)
+        print("Environment snapshot: {}".format(args.output))
+    return 0
+
+
+def _preflight_command(args: argparse.Namespace) -> int:
+    from .environment import capture_environment, load_environment
+    from .preflight import build_preflight, write_preflight
+
+    base, current = _validate_document(args.base), _validate_document(args.current)
+    environment = load_environment(args.environment) if args.environment else capture_environment()
+    baseline = load_environment(args.baseline_environment) if args.baseline_environment else None
+    result = build_preflight(base, current, environment, baseline)
+    # Do all input reads before safely preparing the output directory.
+    output = _prepare_output(args.output)
+    write_preflight(result, output)
+    print("Preflight report: {}".format(output / "index.html"))
+    print(
+        "Text: {}; environment: {}; warnings: {}".format(
+            result["text"]["status"],
+            result["environment_comparison"]["status"],
+            len(result["warnings"]),
+        )
+    )
+    return 1 if args.fail_on_warning and result["warnings"] else 0
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
         if args.command == "compare":
             return _compare_command(args)
+        if args.command == "doctor":
+            return _doctor_command(args)
+        if args.command == "preflight":
+            return _preflight_command(args)
         return _action_command(args)
     except (GitError, OSError, ValueError) as exc:
         print("office-diff: {}".format(exc), file=sys.stderr)

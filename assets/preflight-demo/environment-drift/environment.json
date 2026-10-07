@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "source": "synthetic",
+  "platform": {
+    "system": "ExampleOS",
+    "release": "1",
+    "machine": "synthetic"
+  },
+  "tools": {
+    "libreoffice": {
+      "status": "available",
+      "version": "SYNTHETIC 1.0"
+    },
+    "pdftoppm": {
+      "status": "available",
+      "version": "SYNTHETIC 1.0"
+    },
+    "pdfinfo": {
+      "status": "available",
+      "version": "SYNTHETIC 1.0"
+    },
+    "fontconfig": {
+      "status": "available",
+      "version": "SYNTHETIC 1.0"
+    }
+  },
+  "fonts": {
+    "status": "available",
+    "families": [
+      "example sans"
+    ],
+    "file_hashes": [],
+    "unhashed_files": 0
+  },
+  "fingerprint": "a739f2c42a72bbb6f4e0f8217c4a11970e0bd706fb0f7bc66e9b4171c6692c97"
+}

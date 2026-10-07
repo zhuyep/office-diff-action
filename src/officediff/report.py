@@ -60,6 +60,17 @@ def render_markdown(summary: RunSummary) -> str:
     ]
     if not summary.documents:
         lines.extend(["No changed `.docx` or `.pptx` files were found.", ""])
+    if summary.environment:
+        lines.extend(
+            [
+                "Observed environment fingerprint: `{}`.".format(
+                    summary.environment["fingerprint"]
+                ),
+                "This fingerprint covers observed fields, not all rendering dependencies. "
+                "See `environment.json` for the captured evidence.",
+                "",
+            ]
+        )
     for document in summary.documents:
         lines.extend(_markdown_document(document))
     lines.extend(
@@ -151,6 +162,7 @@ def render_html(summary: RunSummary) -> str:
       <span class="metric"><strong>{errors}</strong> errors</span>
     </div>
   </header>
+  {environment}
   {body}
 </body>
 </html>
@@ -162,6 +174,13 @@ def render_html(summary: RunSummary) -> str:
         pages=summary.changed_pages,
         errors=summary.error_count,
         body=documents,
+        environment=(
+            "<details><summary>Observed environment evidence</summary><p><code>{}</code></p>"
+            "<p>This fingerprint covers observed fields, not all rendering dependencies. "
+            '<a href="environment.json">Open the captured snapshot</a>.</p></details>'
+        ).format(html.escape(summary.environment["fingerprint"]))
+        if summary.environment
+        else "",
     )
 
 
@@ -173,3 +192,7 @@ def write_reports(summary: RunSummary, output_dir: Path) -> None:
     )
     (output_dir / "report.md").write_text(render_markdown(summary), encoding="utf-8")
     (output_dir / "index.html").write_text(render_html(summary), encoding="utf-8")
+    if summary.environment:
+        (output_dir / "environment.json").write_text(
+            json.dumps(summary.environment, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )

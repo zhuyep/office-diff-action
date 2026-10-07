@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "mode": "preflight",
+  "synthetic_environment": true,
+  "base": {
+    "name": "before.docx",
+    "sha256": "6f8f69ad85618bfcf97a609cabcf7b5ab1f8d9fac964d1b53909ef8c2174a517",
+    "font_inspection": {
+      "declarations": [
+        {
+          "family": "Example CJK Sans",
+          "part": "word/document.xml",
+          "kind": "explicit",
+          "role": "eastAsia"
+        },
+        {
+          "family": "Example Sans",
+          "part": "word/document.xml",
+          "kind": "explicit",
+          "role": "ascii"
+        }
+      ],
+      "theme_references": [],
+      "embedded_fonts": [],
+      "limitations": [
+        "Declarations may come from unused styles or defaults; they are not effective fonts.",
+        "Style inheritance, theme references, script selection, and renderer substitutions are not resolved.",
+        "Theme palette entries are catalogs, not a list of required installed fonts.",
+        "Word fontTable catalog names are not treated as usage declarations.",
+        "Embedded font clues do not prove that a renderer can load or use those fonts.",
+        "Glyph coverage, font licensing, and full OOXML schema validity are not checked."
+      ]
+    },
+    "declared_families": [
+      "Example CJK Sans",
+      "Example Sans"
+    ],
+    "inventory_check": "checked",
+    "families_absent_from_inventory": []
+  },
+  "current": {
+    "name": "before.docx",
+    "sha256": "6f8f69ad85618bfcf97a609cabcf7b5ab1f8d9fac964d1b53909ef8c2174a517",
+    "font_inspection": {
+      "declarations": [
+        {
+          "family": "Example CJK Sans",
+          "part": "word/document.xml",
+          "kind": "explicit",
+          "role": "eastAsia"
+        },
+        {
+          "family": "Example Sans",
+          "part": "word/document.xml",
+          "kind": "explicit",
+          "role": "ascii"
+        }
+      ],
+      "theme_references": [],
+      "embedded_fonts": [],
+      "limitations": [
+        "Declarations may come from unused styles or defaults; they are not effective fonts.",
+        "Style inheritance, theme references, script selection, and renderer substitutions are not resolved.",
+        "Theme palette entries are catalogs, not a list of required installed fonts.",
+        "Word fontTable catalog names are not treated as usage declarations.",
+        "Embedded font clues do not prove that a renderer can load or use those fonts.",
+        "Glyph coverage, font licensing, and full OOXML schema validity are not checked."
+      ]
+    },
+    "declared_families": [
+      "Example CJK Sans",
+      "Example Sans"
+    ],
+    "inventory_check": "checked",
+    "families_absent_from_inventory": [
+      "Example CJK Sans"
+    ]
+  },
+  "text": {
+    "status": "no_extracted_text_change",
+    "truncated": false,
+    "diff": ""
+  },
+  "font_declaration_changes": {
+    "added": [],
+    "removed": []
+  },
+  "environment_comparison": {
+    "status": "changed",
+    "changed_fields": [
+      "fonts.families"
+    ],
+    "baseline_fingerprint": "56b1bd1df916e9a503e5c0284e20a156ffa248d6bd0e24b8eafec02a0adabedc",
+    "current_fingerprint": "a739f2c42a72bbb6f4e0f8217c4a11970e0bd706fb0f7bc66e9b4171c6692c97",
+    "limitations": [
+      "This fingerprint describes observed configuration; it does not guarantee reproducibility.",
+      "Fontconfig inventory does not identify fonts actually selected by the Office renderer.",
+      "Font hashes describe observed file contents; paths and selection order are omitted.",
+      "Baseline observations are synthetic fixture data, not a machine capture.",
+      "Current observations are synthetic fixture data, not a machine capture."
+    ]
+  },
+  "baseline_environment": {
+    "schema_version": 1,
+    "source": "synthetic",
+    "platform": {
+      "system": "ExampleOS",
+      "release": "1",
+      "machine": "synthetic"
+    },
+    "tools": {
+      "libreoffice": {
+        "status": "available",
+        "version": "SYNTHETIC 1.0"
+      },
+      "pdftoppm": {
+        "status": "available",
+        "version": "SYNTHETIC 1.0"
+      },
+      "pdfinfo": {
+        "status": "available",
+        "version": "SYNTHETIC 1.0"
+      },
+      "fontconfig": {
+        "status": "available",
+        "version": "SYNTHETIC 1.0"
+      }
+    },
+    "fonts": {
+      "status": "available",
+      "families": [
+        "example cjk sans",
+        "example sans"
+      ],
+      "file_hashes": [],
+      "unhashed_files": 0
+    },
+    "fingerprint": "56b1bd1df916e9a503e5c0284e20a156ffa248d6bd0e24b8eafec02a0adabedc"
+  },
+  "environment": {
+    "schema_version": 1,
+    "source": "synthetic",
+    "platform": {
+      "system": "ExampleOS",
+      "release": "1",
+      "machine": "synthetic"
+    },
+    "tools": {
+      "libreoffice": {
+        "status": "available",
+        "version": "SYNTHETIC 1.0"
+      },
+      "pdftoppm": {
+        "status": "available",
+        "version": "SYNTHETIC 1.0"
+      },
+      "pdfinfo": {
+        "status": "available",
+        "version": "SYNTHETIC 1.0"
+      },
+      "fontconfig": {
+        "status": "available",
+        "version": "SYNTHETIC 1.0"
+      }
+    },
+    "fonts": {
+      "status": "available",
+      "families": [
+        "example sans"
+      ],
+      "file_hashes": [],
+      "unhashed_files": 0
+    },
+    "fingerprint": "a739f2c42a72bbb6f4e0f8217c4a11970e0bd706fb0f7bc66e9b4171c6692c97"
+  },
+  "warnings": [
+    "Observed environment drift: compare renders in the same environment before interpreting a visual regression.",
+    "Current declared families absent from inventory: Example CJK Sans. Substitution is possible, not confirmed."
+  ],
+  "limitations": [
+    "No pages were rendered. These checks do not attribute any pixel difference to a font.",
+    "Font declarations can come from unused styles. Theme references are not resolved.",
+    "A listed family does not prove glyph coverage, shaping, font selection or embedded-font use.",
+    "Equal observed environment fingerprints do not guarantee equal rendering: fontconfig rules, Office settings, locale and other dependencies are not fully captured.",
+    "Extracted text is not document equivalence. Formatting, images, charts and some fields are outside this check; PPTX text follows part filename order, not presentation order."
+  ]
+}
