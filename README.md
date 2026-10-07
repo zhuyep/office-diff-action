@@ -10,12 +10,106 @@ English · [简体中文](README.zh-CN.md)
 GitHub can store `.docx` and `.pptx` files, but its normal diff cannot show a
 reviewer that text reflowed, a slide moved, or a document stopped rendering.
 Office Diff turns every changed page or slide into a base/current/difference
-contact sheet and produces text and machine-readable diffs alongside it.
+contact sheet and produces text and machine-readable diffs alongside it. The
+new, unreleased **preflight** mode inspects extracted text, font declarations
+and environment evidence before you install or run a renderer.
 
 > 中文用户可以直接阅读[完整中文说明](README.zh-CN.md)，包含 GitHub Actions
 > 接入示例、本地使用方式、安全边界和当前限制。
 
 ![Office Diff demo](assets/demo/page-001.png)
+
+## Try the preflight demo
+
+From this source checkout, with **Python 3.9 or newer**:
+
+```bash
+python examples/preflight_demo.py
+```
+
+No pip installation, Pillow, LibreOffice, Poppler, API key or server is needed.
+Open either generated report in your browser:
+
+- `examples/generated/preflight/text-change/index.html`: text changes while the
+  observed environment stays the same.
+- `examples/generated/preflight/environment-drift/index.html`: the same document
+  is checked against two different font inventories.
+
+You can also open the saved [text-change sample](assets/preflight-demo/text-change/index.html)
+or [environment-drift sample](assets/preflight-demo/environment-drift/index.html)
+after downloading this checkout. **Both demos use synthetic documents and
+clearly labeled synthetic environments. They are not measurements of your
+machine and do not render Office pages.**
+
+## Preflight your own documents
+
+The commands below describe the unreleased source implementation. They do not
+change the published Action image or package version. In a locally installed
+checkout, use:
+
+```bash
+office-diff doctor --output current-environment.json
+office-diff preflight before.docx after.docx \
+  --environment current-environment.json \
+  --baseline-environment baseline-environment.json \
+  --output preflight-report
+```
+
+`baseline-environment.json` should be a `doctor` snapshot saved in the environment
+used for the baseline. Omit `--baseline-environment` when you do not have one;
+the report will say that environment drift was not compared. The same commands
+accept two `.pptx` files.
+
+To run directly from the repository root without installing any dependencies:
+
+```bash
+PYTHONPATH=src python -m officediff doctor --output current-environment.json
+PYTHONPATH=src python -m officediff preflight before.docx after.docx --output preflight-report
+```
+
+For PowerShell, set `$env:PYTHONPATH = "src"` first, then use
+`python -m officediff` with the same arguments. Python must be version 3.9 or newer.
+
+| Option | Behavior |
+|---|---|
+| `doctor` | Prints a JSON environment snapshot to stdout. |
+| `doctor --output NEW.json` | Writes a new file; refuses to overwrite an existing file. |
+| `preflight --environment CURRENT.json` | Uses the supplied current snapshot; otherwise captures the local environment. |
+| `preflight --baseline-environment BASE.json` | Compares the observed baseline and current environments; also checks the baseline document against that snapshot. |
+| `preflight --output DIRECTORY` | Writes `index.html`, `summary.json` and `environment.json`; defaults to `office-preflight-report`. |
+| `preflight --fail-on-warning` | Returns exit code 1 if any warning is present, after writing the report. |
+
+Preflight returns 0 after a successful report by default, even when evidence is
+incomplete or warnings are present. Invalid input or an output error returns 2.
+Without a baseline snapshot, both document versions are checked against the
+current environment. Missing renderer tools are recorded; they do not prevent
+`doctor` or `preflight` from running.
+
+### How to read the evidence
+
+- **Font declarations are not actual font usage.** A declaration may be in an
+  unused style. Theme references remain unresolved; theme palettes and font-table
+  catalogs are not treated as missing fonts.
+- **Unavailable font evidence means unknown.** If the font inventory is absent
+  or partial, availability is reported as unknown. A declared family absent from
+  a complete inventory is a substitution risk, not proof of substitution. An
+  available family does not prove glyph coverage or the renderer's selection.
+- **The fingerprint covers observations, not deterministic rendering.** It
+  records platform fields, discovered tool versions, font families and observed
+  font-file hashes. It does not fully capture fontconfig rules, Office settings,
+  locale or other dependencies. Matching fingerprints cannot guarantee matching
+  pages; differing fingerprints cannot prove the cause of a visual change.
+- **No pages are rendered by preflight.** Unchanged extracted text does not mean
+  equivalent documents: formatting, images, charts and some fields are outside
+  the check. Text reaching the extraction limit is marked incomplete and emits a
+  warning. PPTX text currently follows part filenames, not presentation order.
+
+The motivation is practical: [pdf-diff issue #56](https://github.com/JoshData/pdf-diff/issues/56)
+reports false-positive change markings caused by its algorithm, while
+[Docxodus issue #379](https://github.com/JSv4/Docxodus/issues/379) documents the
+need to distinguish font-environment changes from renderer regressions. The
+latter is closed and resolved; it is evidence of the need for diagnostics,
+not an unfilled feature claim. Neither report establishes a font bug in Office Diff.
 
 ## What it produces
 
@@ -23,6 +117,8 @@ contact sheet and produces text and machine-readable diffs alongside it.
 - before/current/difference images for every page or slide;
 - a unified diff of text extracted directly from Office Open XML;
 - a JSON summary for later policy checks;
+- an environment snapshot in `environment.json` and `summary.json`, with its
+  observed fingerprint and limitations in the HTML and Markdown visual reports;
 - a compact GitHub Actions job summary.
 
 It supports `.docx` and `.pptx`. The project reviews documents; it does not edit
@@ -67,7 +163,7 @@ jobs:
 Open the `office-diff-report` artifact from the workflow run and then open
 `index.html`.
 
-## Use it locally
+## Render a visual diff locally
 
 LibreOffice and Poppler must be available on `PATH`.
 
@@ -78,6 +174,10 @@ office-diff compare before.pptx after.pptx --output office-diff-report
 
 The command exits non-zero when rendering fails. Text extraction still runs, so
 the report records partial evidence instead of hiding the failure.
+`compare` and `action` keep their existing options and exit behavior. Their new
+environment snapshot is diagnostic evidence; font risks do not change the
+Action's success or failure status. Full local Office rendering has not been
+validated as part of this preflight MVP.
 
 ## Report structure
 
@@ -86,6 +186,7 @@ office-diff-report/
 ├── index.html          # visual review
 ├── report.md           # portable Markdown report
 ├── summary.json        # automation-friendly result
+├── environment.json    # observed rendering environment
 └── documents/
     └── .../
         ├── base/       # rendered baseline pages
@@ -95,10 +196,11 @@ office-diff-report/
 
 ## Design choices
 
-- **Rendering is evidence, not ground truth.** The Action pins LibreOffice,
-  Poppler, and fonts to the same released container for both sides of a
-  comparison. A future container release can still change rendering, and
-  Microsoft Office can paginate a complex document differently.
+- **Rendering is evidence, not ground truth.** Both sides of a comparison use
+  the same released container environment. The Dockerfile does not lock the apt
+  package versions for LibreOffice, Poppler or fonts, so separate rebuilds can
+  differ. A future container release can also change rendering, and Microsoft
+  Office can paginate a complex document differently.
 - **No document leaves the runner.** The Action does not upload inputs to a
   third-party service. Uploading the generated artifact is an explicit workflow
   step controlled by the repository.
@@ -137,7 +239,7 @@ shareable sample document when you encounter a rendering problem.
 
 - optional PR comment linking to the workflow report;
 - configurable checks for page-count and slide-count changes;
-- font-substitution inventory;
+- effective font selection and substitution evidence beyond declaration preflight;
 - semantic slide matching for moved slides;
 - XLSX support only if real users request it.
 

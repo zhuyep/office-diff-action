@@ -9,6 +9,24 @@ permissions:
   contents: read
 
 jobs:
+  preflight-native:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run preflight without site packages or Office
+        run: python -S examples/preflight_demo.py
+      - name: Capture the native environment without site packages
+        run: >-
+          python -S -c "import sys; sys.path.insert(0, 'src');
+          from officediff.cli import main;
+          raise SystemExit(main(['doctor', '--output', 'native-environment.json']))"
+
   unit:
     strategy:
       matrix:
@@ -69,3 +87,11 @@ jobs:
         run: |
           test -f pptx-smoke-report/index.html
           test -f docx-smoke-report/index.html
+          test -f docx-smoke-report/environment.json
+      - name: Preflight the Word fixture in the rendering container
+        run: >-
+          docker run --rm
+          -v "$PWD:/work"
+          office-diff-action:test
+          preflight /work/tests/fixtures/before.docx /work/tests/fixtures/after.docx
+          --output /work/preflight-smoke-report

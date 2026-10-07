@@ -40,6 +40,7 @@ class RunSummary:
     head_ref: str
     documents: List[DocumentDiff] = field(default_factory=list)
     render_engine: str = "LibreOffice + Poppler"
+    environment: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def changed_pages(self) -> int:
